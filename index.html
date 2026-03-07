@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UX/UI Uzman Karar Mekanizması</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            transition: all 0.3s ease;
+        }
+
+        .wireframe-box {
+            border: 2px dashed #cbd5e1;
+            background-color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+        }
+
+        .active-decision {
+            border: 3px solid #3b82f6 !important;
+            background-color: #eff6ff !important;
+            transform: scale(1.02);
+            position: relative;
+            z-index: 10;
+        }
+
+        .active-decision::after {
+            content: 'UZMANIN SEÇİMİ';
+            position: absolute;
+            top: -14px;
+            right: 10px;
+            background: #1e293b;
+            color: white;
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .idea-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loading-pulse {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .category-tab.active {
+            background-color: #1e293b;
+            color: white;
+            box-shadow: 0 4px 12px -2px rgba(30, 41, 59, 0.3);
+        }
+
+        .like-btn.liked {
+            color: #ef4444;
+        }
+
+        .like-btn.liked svg {
+            fill: #ef4444;
+        }
+
+        .pop-animation {
+            animation: pop 0.3s ease-out;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 pb-24 md:pb-8">
+
+    <!-- Header -->
+    <header class="max-w-6xl mx-auto mb-10 text-center md:text-left flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800">Fikir Değerlendirme Merkezi</h1>
+            <p class="text-slate-500 mt-2">Kategori Uzmanlarıyla İnsan Fikirlerini Analiz Et ve Oyla</p>
+        </div>
+        <div class="flex gap-2 justify-center">
+            <button onclick="runAnalysis()" id="analyzeBtn" class="px-8 py-3 bg-blue-600 rounded-xl font-bold text-white hover:bg-blue-700 transition shadow-lg flex items-center gap-2">
+                <span>Uzman Analizini Başlat</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto">
+        
+        <!-- Input Section -->
+        <section id="inputSection" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-8 transition-colors duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Yeni Fikir Girişi</h2>
+                <span id="errorMessage" class="text-red-500 text-xs font-bold hidden">⚠️ Hata: Mantıklı bir açıklama giriniz!</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div class="md:col-span-3">
+                    <input type="text" id="ideaTitle" placeholder="Fikir Başlığı" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm">
+                </div>
+                <div class="md:col-span-2">
+                    <select id="ideaCategory" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm text-slate-600">
+                        <option value="Teknoloji">Teknoloji</option>
+                        <option value="Sosyal">Sosyal</option>
+                        <option value="Çevre">Çevre</option>
+                        <option value="Eğitim">Eğitim</option>
+                    </select>
+                </div>
+                <div class="md:col-span-5">
+                    <input type="text" id="ideaDesc" placeholder="Fikrin temel amacı nedir?" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm">
+                </div>
+                <div class="md:col-span-2">
+                    <button onclick="handleFormSubmit()" class="w-full h-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black transition">Ekle</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category Tabs -->
+        <div class="flex flex-wrap gap-2 mb-8 items-center justify-between">
+            <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-xs font-bold text-slate-400 mr-2 uppercase tracking-wider">Kategoriler:</span>
+                <button onclick="filterIdeas('Hepsi')" id="tab-Hepsi" class="category-tab active px-5 py-2 rounded-full text-xs font-bold transition">Hepsi</button>
+                <button onclick="filterIdeas('Teknoloji')" id="tab-Teknoloji" class="category-tab bg-white border border-slate-200 px-5 py-2 rounded-full text-xs font-bold transition hover:bg-slate-50">Teknoloji</button>
+                <button onclick="filterIdeas('Sosyal')" id="tab-Sosyal" class="category-tab bg-white border border-slate-200 px-5 py-2 rounded-full text-xs font-bold transition hover:bg-slate-50">Sosyal</button>
+                <button onclick="filterIdeas('Çevre')" id="tab-Çevre" class="category-tab bg-white border border-slate-200 px-5 py-2 rounded-full text-xs font-bold transition hover:bg-slate-50">Çevre</button>
+                <button onclick="filterIdeas('Eğitim')" id="tab-Eğitim" class="category-tab bg-white border border-slate-200 px-5 py-2 rounded-full text-xs font-bold transition hover:bg-slate-50">Eğitim</button>
+            </div>
+            
+            <div id="expertBadge" class="hidden md:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                <div class="w-8 h-8 wireframe-box rounded-full text-[8px] font-bold bg-white">PRO</div>
+                <div>
+                    <span id="expertName" class="block text-[10px] font-bold text-slate-800 leading-none">UZMAN BEKLENİYOR</span>
+                    <span id="expertTitle" class="text-[9px] text-slate-400 uppercase tracking-tighter">SİSTEM HAZIR</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Idea Grid -->
+        <div id="ideaContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dinamik içerik -->
+        </div>
+
+        <!-- Expert Analysis Detail Box -->
+        <div id="analysisDetail" class="hidden mt-12 p-8 bg-slate-900 rounded-3xl text-white relative overflow-hidden transition-all duration-500 opacity-0 transform translate-y-4 shadow-2xl">
+            <div class="relative z-10 flex flex-col md:flex-row gap-12">
+                <!-- Expert Profile -->
+                <div class="w-full md:w-1/3 flex flex-col items-center text-center border-b md:border-b-0 md:border-r border-slate-700 pb-8 md:pb-0 md:pr-8">
+                    <div class="w-24 h-24 wireframe-box rounded-2xl bg-slate-800 border-slate-600 mb-4 text-2xl">👤</div>
+                    <h3 id="detailExpertName" class="text-xl font-bold mb-1">Uzman Adı</h3>
+                    <span id="detailExpertTitle" class="text-xs text-blue-400 font-bold uppercase tracking-widest mb-4">Ünvan</span>
+                    <div class="w-full space-y-3 text-left">
+                        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                            <span id="metric1Name" class="block text-[9px] text-slate-400 uppercase mb-1">METRİK 1</span>
+                            <div class="h-1 w-full bg-slate-700 rounded-full overflow-hidden">
+                                <div id="metric1Bar" class="h-full bg-green-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700">
+                            <span id="metric2Name" class="block text-[9px] text-slate-400 uppercase mb-1">METRİK 2</span>
+                            <div class="h-1 w-full bg-slate-700 rounded-full overflow-hidden">
+                                <div id="metric2Bar" class="h-full bg-blue-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analysis Content -->
+                <div class="w-full md:w-2/3">
+                    <div class="flex items-center gap-3 mb-6">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Uzman Görüşü</span>
+                        <div class="h-[1px] flex-grow bg-slate-700"></div>
+                    </div>
+                    <h2 id="winnerTitle" class="text-3xl font-bold mb-4">Seçilen Fikir Başlığı</h2>
+                    <p id="decisionText" class="text-slate-400 leading-relaxed mb-8 text-lg">
+                        Uzmanın detaylı analizi burada yer alacak.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flex items-start gap-3">
+                            <div class="mt-1 w-5 h-5 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center text-[10px] font-bold">1</div>
+                            <p id="reason1" class="text-sm text-slate-300">Neden 1</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="mt-1 w-5 h-5 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center text-[10px] font-bold">2</div>
+                            <p id="reason2" class="text-sm text-slate-300">Neden 2</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Background element -->
+            <div class="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-[100px]"></div>
+        </div>
+
+    </main>
+
+    <script>
+        let ideas = [];
+        let currentFilter = 'Hepsi';
+
+        const experts = {
+            'Teknoloji': { name: 'Caner Tekin', title: 'Baş Sistem Mimarı', metrics: ['Ölçeklenebilirlik', 'Teknik Altyapı'], icon: '💻' },
+            'Sosyal': { name: 'Elif Sosyal', title: 'Davranış Bilimci', metrics: ['Toplumsal Etki', 'Kullanıcı Bağlılığı'], icon: '🤝' },
+            'Çevre': { name: 'Dr. Arda Yeşil', title: 'Sürdürülebilirlik Uzmanı', metrics: ['Eko-Verimlilik', 'Karbon Ayak İzi'], icon: '🌿' },
+            'Eğitim': { name: 'Prof. Selen Bilge', title: 'Öğrenim Tasarımcısı', metrics: ['Pedagojik Değer', 'Bilgi Kalıcılığı'], icon: '📚' },
+            'Hepsi': { name: 'Genel Kurul', title: 'UX Direktörü', metrics: ['Genel Mantık', 'Pazar Uyumu'], icon: '⚖️' }
+        };
+
+        const categoryColors = {
+            'Teknoloji': 'bg-purple-100 text-purple-600 border-purple-200',
+            'Sosyal': 'bg-pink-100 text-pink-600 border-pink-200',
+            'Çevre': 'bg-green-100 text-green-600 border-green-200',
+            'Eğitim': 'bg-orange-100 text-orange-600 border-orange-200'
+        };
+
+        function renderIdeas() {
+            const container = document.getElementById('ideaContainer');
+            const filteredIdeas = currentFilter === 'Hepsi' ? ideas : ideas.filter(i => i.category === currentFilter);
+            
+            const expert = experts[currentFilter];
+            document.getElementById('expertBadge').classList.remove('hidden');
+            document.getElementById('expertName').innerText = expert.name;
+            document.getElementById('expertTitle').innerText = expert.title;
+
+            if (filteredIdeas.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-white/50">
+                        <div class="text-4xl mb-4 opacity-30">${expert.icon}</div>
+                        <p class="text-slate-400 text-sm font-medium">Bu alanda henüz bir fikir önerilmedi.<br>Uzman ${expert.name} verilerinizi bekliyor.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filteredIdeas.map(idea => `
+                <div id="card-${idea.id}" class="idea-card bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="px-3 py-1 rounded-full text-[9px] font-bold uppercase border ${categoryColors[idea.category]}">${idea.category}</span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="toggleLike(${idea.id}, this)" class="like-btn flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 hover:bg-red-50 transition ${idea.isLiked ? 'liked' : ''}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                                    </svg>
+                                    <span class="text-[10px] font-bold">${idea.likes}</span>
+                                </button>
+                                <span class="score-tag text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">SKOR: ${idea.score}</span>
+                            </div>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2 truncate">${idea.title}</h3>
+                        <p class="text-sm text-slate-500 leading-relaxed mb-6 line-clamp-3">${idea.desc}</p>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase mb-2">
+                            <span>Uzman Onay Oranı</span>
+                            <span class="text-slate-600">${idea.viability}%</span>
+                        </div>
+                        <div class="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-6">
+                            <div class="h-full bg-slate-300 transition-all duration-1000" style="width: ${idea.viability}%"></div>
+                        </div>
+                        <button onclick="removeIdea(${idea.id})" class="text-[9px] text-slate-300 hover:text-red-500 font-bold uppercase transition">Listeden Çıkar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleLike(id, btn) {
+            const idea = ideas.find(i => i.id === id);
+            if (!idea) return;
+
+            if (idea.isLiked) {
+                idea.likes--;
+                idea.isLiked = false;
+                btn.classList.remove('liked');
+            } else {
+                idea.likes++;
+                idea.isLiked = true;
+                btn.classList.add('liked');
+                btn.classList.add('pop-animation');
+                setTimeout(() => btn.classList.remove('pop-animation'), 300);
+            }
+            
+            // Re-render only the specific like count for performance
+            btn.querySelector('span').innerText = idea.likes;
+        }
+
+        function handleFormSubmit() {
+            const titleInput = document.getElementById('ideaTitle');
+            const catInput = document.getElementById('ideaCategory');
+            const descInput = document.getElementById('ideaDesc');
+            const inputSection = document.getElementById('inputSection');
+            const errorMsg = document.getElementById('errorMessage');
+
+            const titleVal = titleInput.value.trim();
+            const descVal = descInput.value.trim();
+            const words = descVal.split(/\s+/).filter(w => w.length > 0);
+
+            if (titleVal.length < 3 || words.length < 3 || descVal.length < 15) {
+                inputSection.classList.add('shake', 'border-red-400', 'bg-red-50');
+                errorMsg.classList.remove('hidden');
+                setTimeout(() => inputSection.classList.remove('shake'), 500);
+                setTimeout(() => {
+                    inputSection.classList.remove('border-red-400', 'bg-red-50');
+                    errorMsg.classList.add('hidden');
+                }, 3000);
+                return;
+            }
+
+            const newIdea = {
+                id: Date.now(),
+                title: titleVal,
+                category: catInput.value,
+                desc: descVal,
+                score: (Math.random() * (9.9 - 4.0) + 4.0).toFixed(1),
+                viability: Math.floor(Math.random() * 40) + 55,
+                likes: 0,
+                isLiked: false
+            };
+
+            ideas.unshift(newIdea);
+            titleInput.value = ''; descInput.value = '';
+            renderIdeas();
+        }
+
+        function filterIdeas(cat) {
+            currentFilter = cat;
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${cat}`).classList.add('active');
+            document.getElementById('analysisDetail').classList.add('hidden');
+            renderIdeas();
+        }
+
+        function removeIdea(id) {
+            ideas = ideas.filter(i => i.id !== id);
+            renderIdeas();
+        }
+
+        async function runAnalysis() {
+            const pool = currentFilter === 'Hepsi' ? ideas : ideas.filter(i => i.category === currentFilter);
+            if (pool.length < 2) {
+                alert("Karşılaştırmalı analiz için bu sekmede en az 2 fikir bulunmalıdır.");
+                return;
+            }
+
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="loading-pulse">Uzman İnceliyor...</span>`;
+            
+            await new Promise(r => setTimeout(r, 1800));
+
+            const winner = [...pool].sort((a, b) => b.score - a.score)[0];
+            const expert = experts[winner.category];
+
+            document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('active-decision'));
+            document.getElementById(`card-${winner.id}`).classList.add('active-decision');
+
+            document.getElementById('detailExpertName').innerText = expert.name;
+            document.getElementById('detailExpertTitle').innerText = expert.title;
+            document.getElementById('winnerTitle').innerText = winner.title;
+            document.getElementById('metric1Name').innerText = expert.metrics[0];
+            document.getElementById('metric2Name').innerText = expert.metrics[1];
+            
+            document.getElementById('decisionText').innerText = `Bir ${expert.title} olarak yaptığım incelemede, bu projenin ${expert.metrics[0].toLowerCase()} dengesini en iyi kuran yapı olduğunu gördüm. Rakiplerine kıyasla ${winner.score} puanlık rasyonel bir temele sahip.`;
+            
+            document.getElementById('reason1').innerText = `${expert.metrics[0]} açısından %${winner.viability} oranında optimize edilmiş durumda.`;
+            document.getElementById('reason2').innerText = `${expert.metrics[1]} verileri, sektör standartlarının üzerinde bir sürdürülebilirlik vaat ediyor.`;
+
+            const detail = document.getElementById('analysisDetail');
+            detail.classList.remove('hidden');
+            setTimeout(() => {
+                detail.classList.add('opacity-100', 'translate-y-0');
+                document.getElementById('metric1Bar').style.width = winner.viability + "%";
+                document.getElementById('metric2Bar').style.width = (winner.score * 10) + "%";
+            }, 50);
+
+            btn.disabled = false;
+            btn.innerText = "Uzman Analizini Başlat";
+            detail.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        window.onload = renderIdeas;
+    </script>
+</body>
+</html>
+
+
+
