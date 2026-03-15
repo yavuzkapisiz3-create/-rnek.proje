@@ -165,7 +165,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // Global Variables
+        // Firebase Configuration
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -177,8 +177,9 @@
         let currentFilter = 'Hepsi';
         let likedIdeas = JSON.parse(localStorage.getItem('user_likes_v4') || '[]');
 
-        // Auth Logic
+        // Improved Auth Logic with Retry mechanism (Rule 3)
         async function initAuth() {
+            const authButton = document.getElementById('submitBtn');
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -186,15 +187,16 @@
                     await signInAnonymously(auth);
                 }
             } catch (err) {
-                console.error("Auth Error", err);
-                document.getElementById('statusText').innerText = "BAĞLANTI HATASI";
+                console.error("Auth Error, retrying...", err);
+                // Fallback attempt
+                setTimeout(initAuth, 2000);
             }
         }
 
+        // Listener for auth state (Rule 3)
         onAuthStateChanged(auth, (u) => {
             user = u;
             if (user) {
-                // UI Update
                 const btn = document.getElementById('submitBtn');
                 btn.disabled = false;
                 btn.innerText = "Gönder";
@@ -202,25 +204,31 @@
                 btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
                 
                 document.getElementById('statusDot').classList.replace('bg-amber-500', 'bg-green-500');
+                document.getElementById('statusDot').classList.remove('animate-pulse');
                 document.getElementById('statusText').innerText = "ÇEVRİMİÇİ";
 
                 startListening();
+            } else {
+                document.getElementById('statusText').innerText = "BAĞLANTI BEKLENİYOR";
             }
         });
 
-        // Realtime Data (RULE 1: Strict Paths)
+        // Realtime Data (Rule 1: Strict Paths)
         function startListening() {
             if (!user) return;
+            // Public collection path check
             const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'ideas');
             
-            // Verileri canlı dinle (onSnapshot her zaman en güncel veriyi getirir)
             onSnapshot(colRef, (snap) => {
                 ideas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                // Yeniden eskiye sıralama (Timestamp kullanarak)
                 ideas.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
                 render();
             }, (err) => {
-                console.error("Firestore Dinleme Hatası:", err);
+                console.error("Firestore Listen Error:", err);
+                // If permission error occurs, user might need to re-auth
+                if(err.code === 'permission-denied') {
+                    console.log("Permission denied, checking auth...");
+                }
             });
         }
 
@@ -259,9 +267,12 @@
             }).join('');
         }
 
-        // Fikir Gönder
         window.submitIdea = async () => {
-            if (!user) return;
+            if (!user) {
+                console.log("No user, attempting re-auth...");
+                await initAuth();
+                return;
+            }
 
             const t = document.getElementById('ideaTitle');
             const c = document.getElementById('ideaCategory');
@@ -276,10 +287,9 @@
 
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.innerText = "Kalıcı Olarak Kaydediliyor...";
+            btn.innerText = "Kaydediliyor...";
 
             try {
-                // RULE 1: Strict Path - Public data
                 const colPath = collection(db, 'artifacts', appId, 'public', 'data', 'ideas');
                 await addDoc(colPath, {
                     title: t.value.trim(),
@@ -288,39 +298,34 @@
                     likes: 0,
                     score: (Math.random() * 3 + 6).toFixed(1),
                     viability: Math.floor(Math.random() * 20 + 75),
-                    timestamp: Date.now(), // Sıralama için kritik
+                    timestamp: Date.now(),
                     userId: user.uid
                 });
                 t.value = ""; d.value = "";
             } catch (e) {
-                console.error("Yazma Hatası:", e);
-                alert("Veritabanına yazılamadı. Lütfen tekrar deneyin.");
+                console.error("Write Error:", e);
+                alert("Bağlantı hatası: Veri gönderilemedi.");
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Gönder";
             }
         };
 
-        // Beğeni Yönetimi
         window.handleLike = async (id) => {
             if (!user) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'ideas', id);
             
             try {
                 if (likedIdeas.includes(id)) {
-                    // Beğeni geri al
                     await updateDoc(docRef, { likes: increment(-1) });
                     likedIdeas = likedIdeas.filter(l => l !== id);
                 } else {
-                    // Beğen
                     await updateDoc(docRef, { likes: increment(1) });
                     likedIdeas.push(id);
                 }
-                // Yerel hafızaya kaydet (Yenileme sonrası beğeni ikonunun kırmızı kalması için)
                 localStorage.setItem('user_likes_v4', JSON.stringify(likedIdeas));
-                // Render zaten onSnapshot ile tetiklenecek
             } catch (e) {
-                console.error("Beğeni Hatası:", e);
+                console.error("Like Error:", e);
             }
         };
 
@@ -336,7 +341,6 @@
             const pool = currentFilter === 'Hepsi' ? ideas : ideas.filter(i => i.category === currentFilter);
             if (pool.length === 0) return;
 
-            // En çok beğenilen veya en yüksek skorlu olanı seç
             const winner = [...pool].sort((a,b) => (b.likes || 0) - (a.likes || 0) || (b.score || 0) - (a.score || 0))[0];
             
             document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('winner-border'));
@@ -346,14 +350,14 @@
             const panel = document.getElementById('analysisPanel');
             panel.classList.remove('hidden');
             document.getElementById('winnerTitle').innerText = winner.title;
-            document.getElementById('winnerAnalysis').innerText = `Uzman sistemimiz veritabanındaki kayıtları analiz etti: "${winner.title}" önerisi ${winner.category} alanında en yüksek potansiyele sahip. Uygulanabilirlik oranı %${winner.viability} olarak hesaplanmıştır.`;
+            document.getElementById('winnerAnalysis').innerText = `Analiz tamamlandı: "${winner.title}" fikri, %${winner.viability} teknik uygunluk skoru ile kategorisinde öne çıkıyor.`;
             document.getElementById('statLikes').innerText = winner.likes || 0;
             document.getElementById('statViability').innerText = `%${winner.viability}`;
             
             panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
         };
 
-        // Uygulamayı başlat
+        // Start Auth process
         initAuth();
     </script>
 </body>
